@@ -1,0 +1,13 @@
+steps:
+  - label: ":sparkles: Tests"
+    plugins:
+      - plugin-tester#v1.3.0:
+          pull: true
+
+  - label: ":lint-roller: Lint"
+    plugins:
+      - plugin-linter#v3.0.0:
+          id: buildkite-plugins/mise
+
+  - label: ":shell: Shellcheck"
+    command: shellcheck hooks/*
