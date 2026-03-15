@@ -59,6 +59,54 @@ teardown() {
   rm -rf "${TEST_TMPDIR}"
 }
 
+setup_install_mocks() {
+  mkdir -p "${TEST_TMPDIR}/mock-bin"
+  export PATH="${TEST_TMPDIR}/mock-bin:${PATH}"
+
+  cat > "${TEST_TMPDIR}/mock-bin/curl" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'mock archive'
+MOCK
+
+  cat > "${TEST_TMPDIR}/mock-bin/tar" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+dest=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -C)
+      dest="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+mkdir -p "${dest}/mise/bin"
+cat > "${dest}/mise/bin/mise" <<'INNER'
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  --version|version)
+    echo "mise v1.0.0"
+    ;;
+  *)
+    echo "unexpected installed command: $*" >&2
+    exit 1
+    ;;
+esac
+INNER
+chmod +x "${dest}/mise/bin/mise"
+MOCK
+
+  chmod +x "${TEST_TMPDIR}/mock-bin/curl" "${TEST_TMPDIR}/mock-bin/tar"
+}
+
 @test "runs install and exports environment" {
   export BUILDKITE_PLUGIN_MISE_INSTALL="true"
   export BUILDKITE_PLUGIN_MISE_RESHIM="true"
@@ -101,4 +149,17 @@ teardown() {
     echo "env export should not be called"
     exit 1
   fi
+}
+
+@test "installs mise without leaking cleanup trap state" {
+  rm -f "${BUILDKITE_PLUGIN_MISE_MISE_DIR}/bin/mise"
+  export BUILDKITE_PLUGIN_MISE_INSTALL="false"
+  export BUILDKITE_PLUGIN_MISE_ENV="false"
+  setup_install_mocks
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [ -x "${BUILDKITE_PLUGIN_MISE_MISE_DIR}/bin/mise" ]
+  [[ "${output}" != *"archive: unbound variable"* ]]
 }

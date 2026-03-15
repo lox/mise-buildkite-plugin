@@ -88,6 +88,11 @@ hash_sha256() {
   fi
 }
 
+cleanup_install_mise() {
+  rm -f "$1"
+  rm -rf "$2"
+}
+
 detect_platform() {
   local os
   local arch
@@ -186,20 +191,23 @@ install_mise() {
   extracted="$(mktemp -d)"
   echo "Downloading mise v${version} for ${platform}"
 
-  trap 'rm -f "$archive"; rm -rf "$extracted"' RETURN
+  (
+    set -euo pipefail
+    trap "cleanup_install_mise '$archive' '$extracted'" EXIT
 
-  curl -fsSL "$url" > "$archive"
-  tar -xzf "$archive" -C "$extracted"
+    curl -fsSL "$url" > "$archive"
+    tar -xzf "$archive" -C "$extracted"
 
-  mkdir -p "$MISE_BIN"
-  if [ -x "$extracted/mise/bin/mise" ]; then
-    mv "$extracted/mise/bin/mise" "$MISE_BINARY"
-  elif [ -x "$extracted/bin/mise" ]; then
-    mv "$extracted/bin/mise" "$MISE_BINARY"
-  else
-    echo "Could not find mise binary in ${url}" >&2
-    exit 1
-  fi
+    mkdir -p "$MISE_BIN"
+    if [ -x "$extracted/mise/bin/mise" ]; then
+      mv "$extracted/mise/bin/mise" "$MISE_BINARY"
+    elif [ -x "$extracted/bin/mise" ]; then
+      mv "$extracted/bin/mise" "$MISE_BINARY"
+    else
+      echo "Could not find mise binary in ${url}" >&2
+      exit 1
+    fi
+  )
 }
 
 required_version_raw="$(plugin_cfg_default version latest)"
