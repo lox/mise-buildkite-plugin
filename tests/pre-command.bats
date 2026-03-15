@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2030,SC2031
 
 setup() {
   TEST_TMPDIR="$(mktemp -d)"
@@ -26,8 +27,9 @@ case "${cmd}" in
     echo "reshim $*" >> "${log_file}"
     ;;
   env)
-    if [ "${2:-}" = "--dotenv" ]; then
-      echo "TEST_ENV=ok"
+    if [ "${2:-}" = "--shell" ] && [ "${3:-}" = "bash" ]; then
+      echo "export TEST_ENV=ok"
+      echo "export PATH=\"${MISE_DATA_DIR}/installs/go/1.0.0/bin:\$PATH\""
       echo "env $*" >> "${log_file}"
     else
       exit 1
@@ -124,7 +126,7 @@ MOCK
   grep -F 'node = "20.18.1"' "${BUILDKITE_BUILD_CHECKOUT_PATH}/mise.toml"
   grep -F 'install install node@20 python@3.12' "${MISE_MOCK_LOG}"
   grep -F 'reshim reshim -f' "${MISE_MOCK_LOG}"
-  grep -F 'TEST_ENV=ok' "${BUILDKITE_ENV_FILE}"
+  grep -F 'export TEST_ENV=ok' "${BUILDKITE_ENV_FILE}"
   grep -F 'export MISE_DATA_DIR=' "${BUILDKITE_ENV_FILE}"
   grep -F 'export PATH=' "${BUILDKITE_ENV_FILE}"
 }
@@ -162,4 +164,19 @@ MOCK
   [ "${status}" -eq 0 ]
   [ -x "${BUILDKITE_PLUGIN_MISE_MISE_DIR}/bin/mise" ]
   [[ "${output}" != *"archive: unbound variable"* ]]
+}
+
+@test "uses mise tool PATH when shims are disabled" {
+  export BUILDKITE_PLUGIN_MISE_INSTALL="false"
+  export BUILDKITE_PLUGIN_MISE_ENV="true"
+  export BUILDKITE_PLUGIN_MISE_ADD_SHIMS_TO_PATH="false"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  grep -F "export PATH=\"${BUILDKITE_PLUGIN_MISE_MISE_DIR}/installs/go/1.0.0/bin:\$PATH\"" "${BUILDKITE_ENV_FILE}"
+  if grep -Fq "${BUILDKITE_PLUGIN_MISE_MISE_DIR}/shims" "${BUILDKITE_ENV_FILE}"; then
+    echo "shims path should not be exported when add_shims_to_path=false"
+    exit 1
+  fi
 }

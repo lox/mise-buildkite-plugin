@@ -193,7 +193,7 @@ install_mise() {
 
   (
     set -euo pipefail
-    trap "cleanup_install_mise '$archive' '$extracted'" EXIT
+    trap 'cleanup_install_mise "$archive" "$extracted"' EXIT
 
     curl -fsSL "$url" > "$archive"
     tar -xzf "$archive" -C "$extracted"
@@ -328,10 +328,10 @@ fi
 if [ "$load_env" = true ]; then
   if [ -n "${BUILDKITE_ENV_FILE:-}" ]; then
     temp_env_file="$(mktemp)"
-    if run_mise env --dotenv > "$temp_env_file"; then
+    if run_mise env --shell bash > "$temp_env_file"; then
       cat "$temp_env_file" >> "$BUILDKITE_ENV_FILE"
     else
-      echo "mise env --dotenv failed, env export skipped"
+      echo "mise env --shell bash failed, env export skipped"
     fi
     rm -f "$temp_env_file"
   else

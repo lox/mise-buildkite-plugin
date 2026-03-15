@@ -54,4 +54,4 @@ configuration:
     env:
       type: boolean
       default: true
-      description: Export variables from `mise env --dotenv` into the step environment file.
+      description: Export variables from `mise env --shell bash` into the step environment file, including PATH entries for installed tool binaries.

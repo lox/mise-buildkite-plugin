@@ -41,7 +41,7 @@ Configuration keys are read from the plugin block and made available as `BUILDKI
 - `reshim` (default: false): run `mise reshim -f`.
 - `add_shims_to_path` (default: true): prepend `${mise_dir}/shims` to `PATH`.
 - `github_token` (default: unset): sets `MISE_GITHUB_TOKEN`.
-- `env` (default: true): append output from `mise env --dotenv` to `$BUILDKITE_ENV_FILE`.
+- `env` (default: true): append output from `mise env --shell bash` to `$BUILDKITE_ENV_FILE`, including PATH entries for installed tool binaries.
 
 ## Notes
 
