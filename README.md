@@ -1,8 +1,13 @@
 # mise Buildkite Plugin
 
-Small Buildkite plugin to install and configure [mise](https://mise.jdx.dev/) for a step, with a configuration shape inspired by
-[`jdx/mise-action`](https://github.com/jdx/mise-action) and hook simplicity inspired by
-[`elastic/hermit-buildkite-plugin`](https://github.com/elastic/hermit-buildkite-plugin).
+Install [mise](https://mise.jdx.dev/), run `mise install`, and export the tool environment into the Buildkite step.
+
+This plugin is intentionally small:
+
+- `mise` is installed if missing or at the wrong version
+- `mise install` always runs
+- `mise env --shell bash` is always appended to `$BUILDKITE_ENV_FILE`
+- tool versions come from the repository, not plugin config
 
 ## Example
 
@@ -11,43 +16,35 @@ steps:
   - label: ":wrench: Test"
     plugins:
       - buildkite-plugins/mise#v1.0.0:
-          version: 2025.10.2
-          install: true
-          install_args: "node@20 python@3.12"
-          tool_versions: |
-            node 20.18.1
-            python 3.12.0
-          log_level: info
-          reshim: false
-    command: node --version
+          version: 2026.2.11
+    command: go test ./...
+```
+
+## Monorepo Example
+
+```yml
+steps:
+  - label: ":wrench: Test backend"
+    plugins:
+      - buildkite-plugins/mise#v1.0.0:
+          dir: backend
+    command: go test ./...
 ```
 
 ## Configuration
 
-Configuration keys are read from the plugin block and made available as `BUILDKITE_PLUGIN_MISE_*` environment variables.
+- `version` (default: `latest`): mise version to install.
+- `dir` (default: checkout directory): directory where `mise install` and `mise env` run.
 
-### Inputs
+## Repo Requirements
 
-- `version` (default: latest): mise version string (e.g. `2025.10.2`).
-- `sha256` (default: unset): checksum used to verify downloaded mise archive.
-- `mise_dir` (default: resolved from `MISE_DATA_DIR` / `$XDG_DATA_HOME/mise` / `~/.local/share/mise`): mise data directory.
-- `working_directory` (default: step checkout dir): directory where `mise install` runs.
-- `tool_versions` (default: unset): content written to `.tool-versions`.
-- `mise_toml` (default: unset): content written to `mise.toml`.
-- `install` (default: true): run `mise install`.
-- `install_args` (default: unset): additional args for `mise install`.
-- `experimental` (default: false): sets `MISE_EXPERIMENTAL=1`.
-- `log_level` (default: unset): sets `MISE_LOG_LEVEL`.
-- `reshim` (default: false): run `mise reshim -f`.
-- `add_shims_to_path` (default: true): prepend `${mise_dir}/shims` to `PATH`.
-- `github_token` (default: unset): sets `MISE_GITHUB_TOKEN`.
-- `env` (default: true): append output from `mise env --shell bash` to `$BUILDKITE_ENV_FILE`, including PATH entries for installed tool binaries.
+The target directory must contain one of:
 
-## Notes
+- `mise.toml`
+- `.mise.toml`
+- `.tool-versions`
 
-- This implementation mirrors GitHub Action behavior where practical for Buildkite: install/setup and optional `mise install`, then export env into Buildkite step scope.
-- Windows (`win32`) is not currently supported.
-- Caching is intentionally not included in this first version.
+Advanced `mise` behavior should be configured with normal step environment variables such as `MISE_DATA_DIR`, `MISE_LOG_LEVEL`, or `MISE_EXPERIMENTAL`, not plugin-specific config keys.
 
 ## Development
 
@@ -56,5 +53,5 @@ Run plugin checks locally:
 ```bash
 docker run --rm -v "$PWD:/plugin" -w /plugin buildkite/plugin-linter --id buildkite-plugins/mise --path /plugin
 docker run --rm -v "$PWD:/plugin" -w /plugin buildkite/plugin-tester
-shellcheck hooks/pre-command
+"$(mise where shellcheck@0.11.0)/shellcheck-v0.11.0/shellcheck" hooks/pre-command tests/pre-command.bats
 ```
