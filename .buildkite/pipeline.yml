@@ -9,5 +9,15 @@ steps:
       - plugin-linter#v3.0.0:
           id: buildkite-plugins/mise
 
+  - label: ":mise: Smoke test"
+    command:
+      - "command -v mise"
+      - "mise --version"
+      - "command -v shellcheck"
+      - "shellcheck --version"
+      - "shellcheck hooks/pre-command tests/pre-command.bats"
+    plugins:
+      - ./: ~
+
   - label: ":shell: Shellcheck"
     command: shellcheck hooks/*
