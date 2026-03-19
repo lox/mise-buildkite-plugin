@@ -47,6 +47,44 @@ cleanup_install_mise() {
   rm -rf "$2"
 }
 
+hosted_cache_volume_root() {
+  printf '%s' "${MISE_HOSTED_CACHE_VOLUME_ROOT:-/cache/bkcache}"
+}
+
+resolve_mise_dir() {
+  local cache_dir_cfg
+  local hosted_cache_root
+
+  if [ -n "${MISE_DATA_DIR:-}" ]; then
+    MISE_DIR_SOURCE="MISE_DATA_DIR environment variable"
+    MISE_DIR="$MISE_DATA_DIR"
+    return
+  fi
+
+  cache_dir_cfg="$(plugin_cfg cache-dir)"
+  if [ -n "$cache_dir_cfg" ]; then
+    MISE_DIR_SOURCE="plugin cache-dir configuration"
+    MISE_DIR="$cache_dir_cfg"
+    return
+  fi
+
+  hosted_cache_root="$(hosted_cache_volume_root)"
+  if [ "${BUILDKITE_COMPUTE_TYPE:-self-hosted}" = "hosted" ] && [ -d "$hosted_cache_root" ] && [ -w "$hosted_cache_root" ]; then
+    MISE_DIR_SOURCE="Buildkite hosted agent cache volume"
+    MISE_DIR="${hosted_cache_root}/mise"
+    return
+  fi
+
+  if [ -n "${XDG_DATA_HOME:-}" ]; then
+    MISE_DIR_SOURCE="XDG_DATA_HOME fallback"
+    MISE_DIR="${XDG_DATA_HOME}/mise"
+    return
+  fi
+
+  MISE_DIR_SOURCE="HOME fallback"
+  MISE_DIR="${HOME}/.local/share/mise"
+}
+
 detect_platform() {
   local os
   local arch
@@ -173,55 +211,58 @@ ensure_mise_config_present() {
   exit 1
 }
 
-required_version_raw="$(plugin_cfg_default version latest)"
-dir_cfg="$(plugin_cfg dir)"
+main() {
+  local current_version
+  local dir_cfg
+  local required_version_raw
 
-if [ -n "$dir_cfg" ]; then
-  WORKING_DIRECTORY="$dir_cfg"
-else
-  WORKING_DIRECTORY="${BUILDKITE_BUILD_CHECKOUT_PATH:-${PWD}}"
-fi
+  required_version_raw="$(plugin_cfg_default version latest)"
+  dir_cfg="$(plugin_cfg dir)"
 
-if [ -n "${MISE_DATA_DIR:-}" ]; then
-  MISE_DIR="$MISE_DATA_DIR"
-elif [ -n "${XDG_DATA_HOME:-}" ]; then
-  MISE_DIR="${XDG_DATA_HOME}/mise"
-else
-  MISE_DIR="${HOME}/.local/share/mise"
-fi
+  if [ -n "$dir_cfg" ]; then
+    WORKING_DIRECTORY="$dir_cfg"
+  else
+    WORKING_DIRECTORY="${BUILDKITE_BUILD_CHECKOUT_PATH:-${PWD}}"
+  fi
 
-MISE_BIN="${MISE_DIR}/bin"
-MISE_BINARY="${MISE_BIN}/mise"
+  resolve_mise_dir
+  MISE_BIN="${MISE_DIR}/bin"
+  MISE_BINARY="${MISE_BIN}/mise"
 
-if [ "$required_version_raw" = latest ]; then
-  VERSION="$(latest_version)"
-else
-  VERSION="${required_version_raw#v}"
-fi
-VERSION="${VERSION#v}"
+  echo "Using mise data dir: ${MISE_DIR} (${MISE_DIR_SOURCE})"
 
-PLATFORM="$(detect_platform)"
-require_cmd curl
-require_cmd tar
+  if [ "$required_version_raw" = latest ]; then
+    VERSION="$(latest_version)"
+  else
+    VERSION="${required_version_raw#v}"
+  fi
+  VERSION="${VERSION#v}"
 
-current_version="$(installed_version)"
-if [ -z "$current_version" ] || [ "$current_version" != "$VERSION" ]; then
-  install_mise "$VERSION" "$PLATFORM"
-fi
+  PLATFORM="$(detect_platform)"
+  require_cmd curl
+  require_cmd tar
 
-ensure_mise_config_present
+  current_version="$(installed_version)"
+  if [ -z "$current_version" ] || [ "$current_version" != "$VERSION" ]; then
+    install_mise "$VERSION" "$PLATFORM"
+  fi
 
-run_mise --version
-run_mise install
+  ensure_mise_config_present
 
-if [ -z "${BUILDKITE_ENV_FILE:-}" ]; then
-  echo "BUILDKITE_ENV_FILE is not set" >&2
-  exit 1
-fi
+  run_mise --version
+  run_mise install
 
-append_export MISE_DATA_DIR "$MISE_DIR"
-append_export MISE_TRUSTED_CONFIG_PATHS "$WORKING_DIRECTORY"
-append_export MISE_YES "1"
-run_mise env --shell bash >> "$BUILDKITE_ENV_FILE"
+  if [ -z "${BUILDKITE_ENV_FILE:-}" ]; then
+    echo "BUILDKITE_ENV_FILE is not set" >&2
+    exit 1
+  fi
 
-echo "~~~ :white_check_mark: mise setup complete"
+  append_export MISE_DATA_DIR "$MISE_DIR"
+  append_export MISE_TRUSTED_CONFIG_PATHS "$WORKING_DIRECTORY"
+  append_export MISE_YES "1"
+  run_mise env --shell bash >> "$BUILDKITE_ENV_FILE"
+
+  echo "~~~ :white_check_mark: mise setup complete"
+}
+
+main "$@"

@@ -9,9 +9,24 @@ setup() {
   export MISE_DATA_DIR="${TEST_TMPDIR}/mise-data"
   export BUILDKITE_PLUGIN_MISE_VERSION="1.0.0"
 
-  mkdir -p "${BUILDKITE_BUILD_CHECKOUT_PATH}" "${MISE_DATA_DIR}/bin" "${MISE_DATA_DIR}/shims"
+  mkdir -p "${BUILDKITE_BUILD_CHECKOUT_PATH}"
+  write_mise_mock "${MISE_DATA_DIR}"
 
-  cat > "${MISE_DATA_DIR}/bin/mise" <<'MOCK'
+  export MISE_MOCK_LOG="${TEST_TMPDIR}/mise.log"
+  : > "${MISE_MOCK_LOG}"
+
+  unset BUILDKITE_PLUGIN_MISE_CACHE_DIR
+  unset BUILDKITE_PLUGIN_MISE_DIR
+  unset BUILDKITE_COMPUTE_TYPE
+  unset MISE_HOSTED_CACHE_VOLUME_ROOT
+}
+
+write_mise_mock() {
+  local data_dir="$1"
+
+  mkdir -p "${data_dir}/bin" "${data_dir}/shims"
+
+  cat > "${data_dir}/bin/mise" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -40,12 +55,7 @@ case "${cmd}" in
     ;;
 esac
 MOCK
-  chmod +x "${MISE_DATA_DIR}/bin/mise"
-
-  export MISE_MOCK_LOG="${TEST_TMPDIR}/mise.log"
-  : > "${MISE_MOCK_LOG}"
-
-  unset BUILDKITE_PLUGIN_MISE_DIR
+  chmod +x "${data_dir}/bin/mise"
 }
 
 teardown() {
@@ -132,6 +142,35 @@ MOCK
   [ "${status}" -eq 0 ]
   grep -F "install pwd=${subdir} install" "${MISE_MOCK_LOG}"
   grep -F "env pwd=${subdir} env --shell bash" "${MISE_MOCK_LOG}"
+}
+
+@test "uses cache-dir config when MISE_DATA_DIR is unset" {
+  cache_dir="${TEST_TMPDIR}/self-hosted-cache"
+  unset MISE_DATA_DIR
+  export BUILDKITE_PLUGIN_MISE_CACHE_DIR="${cache_dir}"
+  write_mise_mock "${cache_dir}"
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  grep -F "Using mise data dir: ${cache_dir} (plugin cache-dir configuration)" <<< "${output}"
+  grep -F "export MISE_DATA_DIR=${cache_dir}" "${BUILDKITE_ENV_FILE}"
+}
+
+@test "uses hosted cache volume automatically when available" {
+  hosted_cache_root="${TEST_TMPDIR}/hosted-cache"
+  unset MISE_DATA_DIR
+  export BUILDKITE_COMPUTE_TYPE="hosted"
+  export MISE_HOSTED_CACHE_VOLUME_ROOT="${hosted_cache_root}"
+  write_mise_mock "${hosted_cache_root}/mise"
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  grep -F "Using mise data dir: ${hosted_cache_root}/mise (Buildkite hosted agent cache volume)" <<< "${output}"
+  grep -F "export MISE_DATA_DIR=${hosted_cache_root}/mise" "${BUILDKITE_ENV_FILE}"
 }
 
 @test "fails when no mise config exists" {
