@@ -6,7 +6,7 @@ This plugin is intentionally small:
 
 - `mise` is installed if missing or at the wrong version
 - `mise install` always runs
-- `mise env --shell bash` is always appended to `$BUILDKITE_ENV_FILE`
+- `mise env --shell bash` is sourced in the hook and appended to `$BUILDKITE_ENV_FILE`
 - tool versions come from the repository, not plugin config
 
 ## Example
@@ -15,7 +15,7 @@ This plugin is intentionally small:
 steps:
   - label: ":wrench: Test"
     plugins:
-      - buildkite-plugins/mise#v1.0.0:
+      - buildkite/mise#v1.1.0:
           version: 2026.2.11
     command: go test ./...
 ```
@@ -26,7 +26,7 @@ steps:
 steps:
   - label: ":wrench: Test backend"
     plugins:
-      - buildkite-plugins/mise#v1.0.0:
+      - buildkite/mise#v1.1.0:
           dir: backend
     command: go test ./...
 ```
@@ -39,7 +39,7 @@ cache: ".buildkite/cache-volume"
 steps:
   - label: ":wrench: Test"
     plugins:
-      - buildkite-plugins/mise#v1.0.0: ~
+      - buildkite/mise#v1.1.0: ~
     command: go test ./...
 ```
 
@@ -66,7 +66,8 @@ The target directory must contain one of:
 Run plugin checks locally:
 
 ```bash
-docker run --rm -v "$PWD:/plugin" -w /plugin buildkite/plugin-linter --id buildkite-plugins/mise --path /plugin
+mise install
+docker run --rm -v "$PWD:/plugin" -w /plugin buildkite/plugin-linter --id buildkite/mise --path /plugin
 docker run --rm -v "$PWD:/plugin" -w /plugin buildkite/plugin-tester
 "$(mise where shellcheck@0.11.0)/shellcheck-v0.11.0/shellcheck" hooks/pre-command tests/pre-command.bats
 ```

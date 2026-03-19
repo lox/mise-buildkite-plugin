@@ -1,13 +1,24 @@
 steps:
   - label: ":sparkles: Tests"
     plugins:
-      - plugin-tester#v1.3.0:
-          pull: true
+      - plugin-tester#v1.3.0: ~
 
   - label: ":lint-roller: Lint"
     plugins:
       - plugin-linter#v3.0.0:
-          id: buildkite-plugins/mise
+          id: buildkite/mise
+
+  - label: ":mise: Smoke test"
+    command:
+      - "command -v mise"
+      - "mise --version"
+      - "command -v shellcheck"
+      - "shellcheck --version"
+      - "shellcheck hooks/pre-command tests/pre-command.bats"
+    plugins:
+      - ./: ~
 
   - label: ":shell: Shellcheck"
     command: shellcheck hooks/*
+    plugins:
+      - ./: ~
