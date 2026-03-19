@@ -131,6 +131,23 @@ MOCK
   grep -F "export PATH=\"${MISE_DATA_DIR}/installs/go/1.0.0/bin:\$PATH\"" "${BUILDKITE_ENV_FILE}"
 }
 
+@test "exports mise environment in the hook shell" {
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+
+  run bash -c "
+    . hooks/pre-command >/dev/null
+    env | grep -Fx 'TEST_ENV=ok'
+    env | grep -Fx 'MISE_TRUSTED_CONFIG_PATHS=${BUILDKITE_BUILD_CHECKOUT_PATH}'
+    env | grep -Fx 'MISE_YES=1'
+    case \":\$PATH:\" in
+      *\":${MISE_DATA_DIR}/installs/go/1.0.0/bin:\"*) ;;
+      *) exit 1 ;;
+    esac
+  "
+
+  [ "${status}" -eq 0 ]
+}
+
 @test "uses dir config for monorepos" {
   subdir="${BUILDKITE_BUILD_CHECKOUT_PATH}/backend"
   mkdir -p "${subdir}"

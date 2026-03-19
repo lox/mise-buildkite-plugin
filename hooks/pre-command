@@ -42,6 +42,18 @@ append_export() {
   append_to_buildkite_env "$(printf 'export %s=%q' "$name" "$value")"
 }
 
+apply_mise_env() {
+  local mise_env_file
+
+  mise_env_file="$(mktemp)"
+  run_mise env --shell bash | tee -a "$BUILDKITE_ENV_FILE" > "$mise_env_file"
+
+  # Source the generated exports so later host-side hooks inherit the tool env.
+  # shellcheck disable=SC1090
+  . "$mise_env_file"
+  rm -f "$mise_env_file"
+}
+
 cleanup_install_mise() {
   rm -f "$1"
   rm -rf "$2"
@@ -260,7 +272,11 @@ main() {
   append_export MISE_DATA_DIR "$MISE_DIR"
   append_export MISE_TRUSTED_CONFIG_PATHS "$WORKING_DIRECTORY"
   append_export MISE_YES "1"
-  run_mise env --shell bash >> "$BUILDKITE_ENV_FILE"
+
+  export MISE_DATA_DIR="$MISE_DIR"
+  export MISE_TRUSTED_CONFIG_PATHS="$WORKING_DIRECTORY"
+  export MISE_YES="1"
+  apply_mise_env
 
   echo "~~~ :white_check_mark: mise setup complete"
 }
