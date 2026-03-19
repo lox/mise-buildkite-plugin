@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "~~~ Setup mise"
+echo "~~~ :mise: Setup mise"
 
 plugin_cfg() {
   local key
@@ -214,6 +214,19 @@ run_mise() {
   )
 }
 
+run_with_expanded_group_on_failure() {
+  local exit_code
+
+  if "$@"; then
+    return 0
+  else
+    exit_code=$?
+  fi
+
+  echo "^^^ +++"
+  return "$exit_code"
+}
+
 ensure_mise_config_present() {
   if [ -f "$WORKING_DIRECTORY/mise.toml" ] || [ -f "$WORKING_DIRECTORY/.mise.toml" ] || [ -f "$WORKING_DIRECTORY/.tool-versions" ]; then
     return
@@ -256,13 +269,13 @@ main() {
 
   current_version="$(installed_version)"
   if [ -z "$current_version" ] || [ "$current_version" != "$VERSION" ]; then
-    install_mise "$VERSION" "$PLATFORM"
+    run_with_expanded_group_on_failure install_mise "$VERSION" "$PLATFORM"
   fi
 
   ensure_mise_config_present
 
   run_mise --version
-  run_mise install
+  run_with_expanded_group_on_failure run_mise install
 
   if [ -z "${BUILDKITE_ENV_FILE:-}" ]; then
     echo "BUILDKITE_ENV_FILE is not set" >&2

@@ -18,6 +18,7 @@ setup() {
   unset BUILDKITE_PLUGIN_MISE_CACHE_DIR
   unset BUILDKITE_PLUGIN_MISE_DIR
   unset BUILDKITE_COMPUTE_TYPE
+  unset MISE_MOCK_FAIL_INSTALL
   unset MISE_HOSTED_CACHE_VOLUME_ROOT
 }
 
@@ -38,6 +39,10 @@ case "${cmd}" in
     echo "mise v1.0.0"
     ;;
   install)
+    if [ "${MISE_MOCK_FAIL_INSTALL:-0}" = "1" ]; then
+      echo "mock install failed" >&2
+      exit 42
+    fi
     echo "install pwd=${PWD} $*" >> "${log_file}"
     ;;
   env)
@@ -125,10 +130,23 @@ MOCK
   run bash hooks/pre-command
 
   [ "${status}" -eq 0 ]
+  grep -F "~~~ :mise: Setup mise" <<< "${output}"
   grep -F "install pwd=${BUILDKITE_BUILD_CHECKOUT_PATH} install" "${MISE_MOCK_LOG}"
   grep -F "env pwd=${BUILDKITE_BUILD_CHECKOUT_PATH} env --shell bash" "${MISE_MOCK_LOG}"
   grep -F "export TEST_ENV=ok" "${BUILDKITE_ENV_FILE}"
   grep -F "export PATH=\"${MISE_DATA_DIR}/installs/go/1.0.0/bin:\$PATH\"" "${BUILDKITE_ENV_FILE}"
+}
+
+@test "expands the setup log group when mise install fails" {
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  export MISE_MOCK_FAIL_INSTALL="1"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 42 ]
+  grep -F "~~~ :mise: Setup mise" <<< "${output}"
+  grep -F "^^^ +++" <<< "${output}"
+  grep -F "mock install failed" <<< "${output}"
 }
 
 @test "exports mise environment in the hook shell" {
