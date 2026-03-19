@@ -12,11 +12,11 @@ steps:
     command:
       - "command -v mise"
       - "mise --version"
-      - "command -v shellcheck"
-      - "shellcheck --version"
-      - "shellcheck hooks/pre-command tests/pre-command.bats"
+      - "command -v go"
+      - "go version"
     plugins:
-      - ./: ~
+      - ./:
+          dir: .buildkite/smoke
 
   - label: ":shell: Shellcheck"
-    command: 'docker run --rm -v "$PWD:/workdir" -w /workdir koalaman/shellcheck-alpine:v0.11.0 shellcheck hooks/*'
+    command: 'docker run --rm -v "$$PWD:/workdir" -w /workdir koalaman/shellcheck-alpine:v0.11.0 shellcheck hooks/*'
