@@ -5,13 +5,21 @@ echo "~~~ :mise: Setup mise"
 
 plugin_cfg() {
   local key
+  local local_var_name
   local normalized_key
   local var_name
 
   key="$1"
   normalized_key="$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
   var_name="BUILDKITE_PLUGIN_MISE_${normalized_key}"
-  printf '%s' "${!var_name:-}"
+  if [ -n "${!var_name:-}" ]; then
+    printf '%s' "${!var_name}"
+    return
+  fi
+
+  # Local plugin paths like `./:` expose config as BUILDKITE_PLUGIN__*.
+  local_var_name="BUILDKITE_PLUGIN__${normalized_key}"
+  printf '%s' "${!local_var_name:-}"
 }
 
 plugin_cfg_default() {

@@ -179,6 +179,19 @@ MOCK
   grep -F "env pwd=${subdir} env --shell bash" "${MISE_MOCK_LOG}"
 }
 
+@test "uses local plugin dir config fallback" {
+  subdir="${BUILDKITE_BUILD_CHECKOUT_PATH}/smoke"
+  mkdir -p "${subdir}"
+  printf 'go 1.0.0\n' > "${subdir}/.tool-versions"
+  export BUILDKITE_PLUGIN__DIR="${subdir}"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  grep -F "install pwd=${subdir} install" "${MISE_MOCK_LOG}"
+  grep -F "env pwd=${subdir} env --shell bash" "${MISE_MOCK_LOG}"
+}
+
 @test "uses cache-dir config when MISE_DATA_DIR is unset" {
   cache_dir="${TEST_TMPDIR}/self-hosted-cache"
   unset MISE_DATA_DIR
