@@ -14,3 +14,6 @@ configuration:
     dir:
       type: string
       description: Directory where `mise install` and `mise env` run. Defaults to the checkout directory.
+    cache-dir:
+      type: string
+      description: Directory to use for `MISE_DATA_DIR`. Useful for persistent caches on self-hosted agents.
