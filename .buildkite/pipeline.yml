@@ -6,7 +6,7 @@ steps:
   - label: ":lint-roller: Lint"
     plugins:
       - plugin-linter#v3.0.0:
-          id: buildkite-plugins/mise
+          id: buildkite/mise
 
   - label: ":mise: Smoke test"
     command:
