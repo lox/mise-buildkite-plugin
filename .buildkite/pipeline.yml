@@ -19,6 +19,4 @@ steps:
       - ./: ~
 
   - label: ":shell: Shellcheck"
-    command: shellcheck hooks/*
-    plugins:
-      - ./: ~
+    command: 'docker run --rm -v "$PWD:/workdir" -w /workdir koalaman/shellcheck-alpine:v0.11.0 shellcheck hooks/*'
