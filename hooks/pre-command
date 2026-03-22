@@ -235,6 +235,35 @@ run_with_expanded_group_on_failure() {
   return "$exit_code"
 }
 
+# Symlink pre-compiled tool installs from a custom agent image into
+# MISE_DATA_DIR/installs/. On Buildkite hosted agents the image filesystem
+# and the cache volume are separate mount points, so tools baked into the
+# image at /opt/mise/installs/ are invisible to mise when MISE_DATA_DIR
+# points at the cache volume. Symlinking bridges the two.
+#
+# Symlinks (not copies) because compiled binaries bake the install prefix
+# into the binary — copying to a different path breaks them.
+link_image_installs() {
+  local image_dir="$1"
+  local installs_dir="${MISE_DIR}/installs"
+
+  if [ ! -d "$image_dir" ]; then
+    return
+  fi
+
+  mkdir -p "$installs_dir"
+
+  for tool_dir in "${image_dir}"/*/; do
+    [ -d "${tool_dir}" ] || continue
+    local tool_name
+    tool_name="$(basename "${tool_dir}")"
+    if [ ! -e "${installs_dir}/${tool_name}" ]; then
+      echo "Linking ${tool_name} installs from agent image"
+      ln -s "${tool_dir%/}" "${installs_dir}/${tool_name}"
+    fi
+  done
+}
+
 ensure_mise_config_present() {
   if [ -f "$WORKING_DIRECTORY/mise.toml" ] || [ -f "$WORKING_DIRECTORY/.mise.toml" ] || [ -f "$WORKING_DIRECTORY/.tool-versions" ]; then
     return
@@ -247,10 +276,12 @@ ensure_mise_config_present() {
 main() {
   local current_version
   local dir_cfg
+  local image_installs_dir
   local required_version_raw
 
   required_version_raw="$(plugin_cfg_default version latest)"
   dir_cfg="$(plugin_cfg dir)"
+  image_installs_dir="$(plugin_cfg image-installs-dir)"
 
   if [ -n "$dir_cfg" ]; then
     WORKING_DIRECTORY="$dir_cfg"
@@ -278,6 +309,12 @@ main() {
   current_version="$(installed_version)"
   if [ -z "$current_version" ] || [ "$current_version" != "$VERSION" ]; then
     run_with_expanded_group_on_failure install_mise "$VERSION" "$PLATFORM"
+  fi
+
+  # Symlink pre-compiled tools from the agent image into MISE_DATA_DIR so
+  # mise install finds them and skips recompilation.
+  if [ -n "$image_installs_dir" ]; then
+    link_image_installs "$image_installs_dir"
   fi
 
   ensure_mise_config_present
