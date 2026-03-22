@@ -17,6 +17,7 @@ setup() {
 
   unset BUILDKITE_PLUGIN_MISE_CACHE_DIR
   unset BUILDKITE_PLUGIN_MISE_DIR
+  unset BUILDKITE_PLUGIN_MISE_IMAGE_INSTALLS_DIR
   unset BUILDKITE_COMPUTE_TYPE
   unset MISE_MOCK_FAIL_INSTALL
   unset MISE_HOSTED_CACHE_VOLUME_ROOT
@@ -226,6 +227,62 @@ MOCK
 
   [ "${status}" -ne 0 ]
   [[ "${output}" == *"No mise config found in"* ]]
+}
+
+@test "symlinks pre-compiled tools from image-installs-dir" {
+  printf 'ruby 4.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  image_dir="${TEST_TMPDIR}/opt-mise-installs"
+  mkdir -p "${image_dir}/ruby/4.0.0/bin"
+  echo "fake ruby" > "${image_dir}/ruby/4.0.0/bin/ruby"
+  export BUILDKITE_PLUGIN_MISE_IMAGE_INSTALLS_DIR="${image_dir}"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"Linking ruby installs from agent image"* ]]
+  [ -L "${MISE_DATA_DIR}/installs/ruby" ]
+  [ "$(readlink "${MISE_DATA_DIR}/installs/ruby")" = "${image_dir}/ruby" ]
+}
+
+@test "skips symlink when tool already exists in installs dir" {
+  printf 'ruby 4.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  image_dir="${TEST_TMPDIR}/opt-mise-installs"
+  mkdir -p "${image_dir}/ruby/4.0.0/bin"
+  mkdir -p "${MISE_DATA_DIR}/installs/ruby"
+  export BUILDKITE_PLUGIN_MISE_IMAGE_INSTALLS_DIR="${image_dir}"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" != *"Linking ruby installs from agent image"* ]]
+  [ -d "${MISE_DATA_DIR}/installs/ruby" ]
+  [ ! -L "${MISE_DATA_DIR}/installs/ruby" ]
+}
+
+@test "ignores image-installs-dir when directory does not exist" {
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  export BUILDKITE_PLUGIN_MISE_IMAGE_INSTALLS_DIR="/nonexistent/path"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" != *"Linking"* ]]
+}
+
+@test "symlinks multiple tools from image-installs-dir" {
+  printf 'ruby 4.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  image_dir="${TEST_TMPDIR}/opt-mise-installs"
+  mkdir -p "${image_dir}/ruby/4.0.0/bin"
+  mkdir -p "${image_dir}/erlang/27.0/bin"
+  export BUILDKITE_PLUGIN_MISE_IMAGE_INSTALLS_DIR="${image_dir}"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [ -L "${MISE_DATA_DIR}/installs/ruby" ]
+  [ -L "${MISE_DATA_DIR}/installs/erlang" ]
+  [[ "${output}" == *"Linking ruby installs from agent image"* ]]
+  [[ "${output}" == *"Linking erlang installs from agent image"* ]]
 }
 
 @test "installs mise without leaking cleanup trap state" {

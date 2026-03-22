@@ -17,3 +17,6 @@ configuration:
     cache-dir:
       type: string
       description: Directory to use for `MISE_DATA_DIR`. Useful for persistent caches on self-hosted agents.
+    image-installs-dir:
+      type: string
+      description: Directory containing pre-compiled tool installs from an agent image (e.g., /opt/mise/installs). Tools are symlinked into MISE_DATA_DIR to avoid recompilation.
