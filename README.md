@@ -15,7 +15,7 @@ This plugin is intentionally small:
 steps:
   - label: ":wrench: Test"
     plugins:
-      - buildkite/mise#v1.1.1:
+      - mise#v1.1.1:
           version: 2026.2.11
     command: go test ./...
 ```
@@ -26,7 +26,7 @@ steps:
 steps:
   - label: ":wrench: Test backend"
     plugins:
-      - buildkite/mise#v1.1.1:
+      - mise#v1.1.1:
           dir: backend
     command: go test ./...
 ```
@@ -39,7 +39,7 @@ cache: ".buildkite/cache-volume"
 steps:
   - label: ":wrench: Test"
     plugins:
-      - buildkite/mise#v1.1.1: ~
+      - mise#v1.1.1: ~
     command: go test ./...
 ```
 
