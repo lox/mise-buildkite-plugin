@@ -17,6 +17,9 @@ setup() {
 
   unset BUILDKITE_PLUGIN_MISE_CACHE_DIR
   unset BUILDKITE_PLUGIN_MISE_DIR
+  unset BUILDKITE_PLUGIN_MISE_TOOLS_0
+  unset BUILDKITE_PLUGIN_MISE_TOOLS_1
+  unset BUILDKITE_PLUGIN_MISE_TOOLS_2
   unset BUILDKITE_COMPUTE_TYPE
   unset MISE_MOCK_FAIL_INSTALL
   unset MISE_HOSTED_CACHE_VOLUME_ROOT
@@ -238,4 +241,62 @@ MOCK
   [ "${status}" -eq 0 ]
   [ -x "${MISE_DATA_DIR}/bin/mise" ]
   [[ "${output}" != *"archive: unbound variable"* ]]
+}
+
+@test "installs only specified tools when tools config is set" {
+  printf 'go 1.0.0\nnode 22.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  export BUILDKITE_PLUGIN_MISE_TOOLS_0="erlang"
+  export BUILDKITE_PLUGIN_MISE_TOOLS_1="elixir"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  grep -F "install pwd=${BUILDKITE_BUILD_CHECKOUT_PATH} install erlang elixir" "${MISE_MOCK_LOG}"
+  [[ "${output}" == *"Installing tools: erlang elixir"* ]]
+}
+
+@test "installs all tools when tools config is not set" {
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  # The log should have "install" with no extra tool arguments
+  local install_line
+  install_line="$(grep 'install pwd=' "${MISE_MOCK_LOG}")"
+  [[ "$install_line" == *"install pwd=${BUILDKITE_BUILD_CHECKOUT_PATH} install" ]]
+}
+
+@test "seeds mise binary from system PATH when cache is cold" {
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  rm -f "${MISE_DATA_DIR}/bin/mise"
+
+  # Place a mock mise on PATH (simulates a base image with mise pre-installed)
+  mkdir -p "${TEST_TMPDIR}/system-bin"
+  write_mise_mock "${TEST_TMPDIR}/system-mise"
+  cp "${TEST_TMPDIR}/system-mise/bin/mise" "${TEST_TMPDIR}/system-bin/mise"
+  chmod +x "${TEST_TMPDIR}/system-bin/mise"
+  export PATH="${TEST_TMPDIR}/system-bin:${PATH}"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"Seeding mise binary from"* ]]
+  [ -x "${MISE_DATA_DIR}/bin/mise" ]
+}
+
+@test "does not seed when cached binary already exists" {
+  printf 'go 1.0.0\n' > "${BUILDKITE_BUILD_CHECKOUT_PATH}/.tool-versions"
+  # Cached binary already exists (from setup)
+
+  mkdir -p "${TEST_TMPDIR}/system-bin"
+  write_mise_mock "${TEST_TMPDIR}/system-mise"
+  cp "${TEST_TMPDIR}/system-mise/bin/mise" "${TEST_TMPDIR}/system-bin/mise"
+  chmod +x "${TEST_TMPDIR}/system-bin/mise"
+  export PATH="${TEST_TMPDIR}/system-bin:${PATH}"
+
+  run bash hooks/pre-command
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" != *"Seeding mise binary"* ]]
 }

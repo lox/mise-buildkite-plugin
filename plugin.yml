@@ -17,3 +17,8 @@ configuration:
     cache-dir:
       type: string
       description: Directory to use for `MISE_DATA_DIR`. Useful for persistent caches on self-hosted agents.
+    tools:
+      type: array
+      items:
+        type: string
+      description: Specific tools to install (e.g., [erlang, elixir]). When omitted, all tools in the config are installed.

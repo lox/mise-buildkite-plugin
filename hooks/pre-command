@@ -32,6 +32,21 @@ plugin_cfg_default() {
   fi
 }
 
+# Read a list-type plugin config (BUILDKITE_PLUGIN_MISE_<KEY>_0, _1, ...).
+# Buildkite encodes YAML arrays as indexed env vars: PLUGIN_KEY_0, PLUGIN_KEY_1, etc.
+plugin_cfg_list() {
+  local key="$1"
+  local i=0
+  local val
+
+  while true; do
+    val="$(plugin_cfg "${key}-${i}")"
+    [ -z "$val" ] && break
+    printf '%s\n' "$val"
+    i=$((i + 1))
+  done
+}
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Required command missing: $1" >&2
@@ -264,6 +279,20 @@ main() {
 
   echo "Using mise data dir: ${MISE_DIR} (${MISE_DIR_SOURCE})"
 
+  # Seed mise binary from the system PATH if cache is cold and mise is
+  # already installed (e.g., baked into a custom agent image). The version
+  # check below will still download if the seeded binary doesn't match.
+  if [ ! -x "$MISE_BINARY" ]; then
+    local system_mise
+    system_mise="$(command -v mise 2>/dev/null || true)"
+    if [ -n "$system_mise" ] && [ -x "$system_mise" ]; then
+      echo "Seeding mise binary from ${system_mise}"
+      mkdir -p "$MISE_BIN"
+      cp "$system_mise" "$MISE_BINARY"
+      chmod +x "$MISE_BINARY"
+    fi
+  fi
+
   if [ "$required_version_raw" = latest ]; then
     VERSION="$(latest_version)"
   else
@@ -283,7 +312,20 @@ main() {
   ensure_mise_config_present
 
   run_mise --version
-  run_with_expanded_group_on_failure run_mise install
+  # Selective tool install: when `tools` is configured, only install those
+  # specific tools instead of everything in the config file. Useful in
+  # monorepos where each step only needs a subset of tools.
+  local -a tools_list=()
+  while IFS= read -r tool; do
+    [ -n "$tool" ] && tools_list+=("$tool")
+  done < <(plugin_cfg_list tools)
+
+  if [ "${#tools_list[@]}" -gt 0 ]; then
+    echo "Installing tools: ${tools_list[*]}"
+    run_with_expanded_group_on_failure run_mise install "${tools_list[@]}"
+  else
+    run_with_expanded_group_on_failure run_mise install
+  fi
 
   if [ -z "${BUILDKITE_ENV_FILE:-}" ]; then
     echo "BUILDKITE_ENV_FILE is not set" >&2
